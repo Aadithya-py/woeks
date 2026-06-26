@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Number Draw</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      background: #0f0f1a;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Segoe UI', sans-serif;
+      padding: 24px;
+      gap: 28px;
+    }
+
+    h1 {
+      color: #fff;
+      font-size: 1.6rem;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      opacity: 0.85;
+    }
+
+    /* Current number display */
+    .display-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .label {
+      color: #aaa;
+      font-size: 0.75rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .current-number {
+      width: 110px;
+      height: 110px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #3b82f6, #ec4899);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 3rem;
+      font-weight: 800;
+      color: #fff;
+      box-shadow: 0 0 40px rgba(236, 72, 153, 0.45), 0 0 80px rgba(59, 130, 246, 0.25);
+      transition: transform 0.15s ease;
+    }
+
+    .current-number.pop {
+      animation: pop 0.35s ease;
+    }
+
+    @keyframes pop {
+      0%   { transform: scale(0.7); opacity: 0.4; }
+      60%  { transform: scale(1.12); }
+      100% { transform: scale(1);   opacity: 1; }
+    }
+
+    .count-label {
+      color: #666;
+      font-size: 0.78rem;
+    }
+
+    /* Draw button */
+    button {
+      padding: 14px 44px;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      border: none;
+      border-radius: 50px;
+      background: linear-gradient(135deg, #3b82f6, #ec4899);
+      color: #fff;
+      cursor: pointer;
+      box-shadow: 0 4px 20px rgba(236, 72, 153, 0.35);
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+
+    button:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 28px rgba(236, 72, 153, 0.5);
+    }
+
+    button:active:not(:disabled) {
+      transform: scale(0.96);
+    }
+
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    /* Matrix grid */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(10, 1fr);
+      gap: 7px;
+    }
+
+    .cell {
+      width: 52px;
+      height: 52px;
+      border-radius: 10px;
+      border: 1.5px solid #2a2a3a;
+      background: #1a1a2e;
+      color: #444;
+      font-size: 1rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.3s, color 0.3s, border-color 0.3s, box-shadow 0.3s, transform 0.15s;
+      user-select: none;
+    }
+
+    /* Previously called — blue */
+    .cell.called {
+      background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+      border-color: #60a5fa;
+      color: #fff;
+      box-shadow: 0 0 10px rgba(59, 130, 246, 0.4);
+    }
+
+    /* Most recently called — pink */
+    .cell.latest {
+      background: linear-gradient(135deg, #be185d, #ec4899);
+      border-color: #f9a8d4;
+      color: #fff;
+      box-shadow: 0 0 18px rgba(236, 72, 153, 0.65);
+      transform: scale(1.12);
+    }
+
+    /* Reset button */
+    .reset-btn {
+      background: transparent;
+      border: 1.5px solid #333;
+      color: #666;
+      padding: 8px 24px;
+      font-size: 0.78rem;
+      box-shadow: none;
+    }
+
+    .reset-btn:hover:not(:disabled) {
+      border-color: #555;
+      color: #aaa;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .buttons-row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Number Draw</h1>
+
+  <div class="display-wrap">
+    <span class="label">Current Number</span>
+    <div class="current-number" id="display">—</div>
+    <span class="count-label" id="count">0 / 90 drawn</span>
+  </div>
+
+  <div class="buttons-row">
+    <button id="drawBtn" onclick="draw()">Draw</button>
+    <button class="reset-btn" onclick="reset()">Reset</button>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <script>
+    const pool = [];       // numbers not yet drawn
+    let drawn = new Set(); // numbers already drawn
+    let latest = null;
+
+    function buildGrid() {
+      const grid = document.getElementById('grid');
+      grid.innerHTML = '';
+      for (let n = 1; n <= 90; n++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.id = 'c' + n;
+        cell.textContent = n;
+        grid.appendChild(cell);
+      }
+    }
+
+    function initPool() {
+      pool.length = 0;
+      for (let n = 1; n <= 90; n++) pool.push(n);
+      // shuffle
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+    }
+
+    function draw() {
+      if (pool.length === 0) return;
+
+      // Remove 'latest' highlight from previous
+      if (latest !== null) {
+        const prev = document.getElementById('c' + latest);
+        prev.classList.remove('latest');
+        prev.classList.add('called');
+      }
+
+      const num = pool.pop();
+      drawn.add(num);
+      latest = num;
+
+      // Highlight new cell
+      const cell = document.getElementById('c' + num);
+      cell.classList.add('latest');
+
+      // Update display
+      const display = document.getElementById('display');
+      display.textContent = num;
+      display.classList.remove('pop');
+      void display.offsetWidth; // reflow to restart animation
+      display.classList.add('pop');
+
+      document.getElementById('count').textContent = drawn.size + ' / 90 drawn';
+
+      if (pool.length === 0) {
+        document.getElementById('drawBtn').disabled = true;
+      }
+    }
+
+    function reset() {
+      drawn.clear();
+      latest = null;
+      document.getElementById('display').textContent = '—';
+      document.getElementById('count').textContent = '0 / 90 drawn';
+      document.getElementById('drawBtn').disabled = false;
+      buildGrid();
+      initPool();
+    }
+
+    // Init
+    buildGrid();
+    initPool();
+  </script>
+</body>
+</html>
